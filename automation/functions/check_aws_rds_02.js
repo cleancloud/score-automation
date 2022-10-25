@@ -1,8 +1,5 @@
 const CheckAws = require("./check_aws");
 const AWS = require("aws-sdk");
-// In case of local test, if code complains about missing region, insert the line below:
-// AWS.config.update({region:'us-east-1'});
-const rds = new AWS.RDS();
 
 class CheckAwsRDS02 extends CheckAws {
 
@@ -10,19 +7,40 @@ class CheckAwsRDS02 extends CheckAws {
         return "Remediate function for RDS with unrestricted access"
     }
 
+    constructor() {
+        super();
+        this.rds = undefined;
+    }
+
+    set region(region) {
+        this.rds = new AWS.RDS({region});
+    }
+
     invokeRemediation = async (event, resource) => {
+        this.region = this.getResourceRegion(event, resource);
+        return await this.modifyDBInstance(event, resource);
+    };
+
+    modifyDBInstance = async (event, resource) => {
         const self = this;
         return await new Promise((resolve, reject) => {
             const params = {
-                DBInstanceIdentifier: resource.Id,
+                DBInstanceIdentifier: resource["Details"]["Other"]["dbInstanceIdentifier"],
                 PubliclyAccessible: false
             };
-            
-            self.logMessage(event.results, "Params:" + JSON.stringify(params));
 
-            rds.modifyDBInstance(params, function (err, results) {
-                if (err) reject(err);
-                else resolve(results);
+            self.logMessage(event.results, "Params:" + JSON.stringify(params, null, 2));
+
+            this.rds.modifyDBInstance(params, function (err, results) {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    const parsedResults = JSON.stringify(results, null, 2);
+                    const msg = `Rds [${params.DBInstanceIdentifier}] successfully changed`;
+                    self.logMessage(event.results, msg);
+                    resolve(results);
+                }
             });
         });
     };

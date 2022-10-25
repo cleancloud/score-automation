@@ -17,23 +17,35 @@ class LogMetricAlarm extends CheckAws {
     }
 
     invokeRemediation = async (event, resource) => {
-        this.region = resource["Region"];
-        return await this.createLogMetricAlarm(event, resource);
+        const promises = [];
+        this.region = this.getResourceRegion(event, resource);
+        JSON.parse(resource["Details"]["Other"]["Params"].replace(/'/g, '"')).forEach(param => {
+            promises.push(this.createLogMetricAlarm(event, param));
+        });
+
+        const promisesError = [];
+        return await Promise.allSettled(promises).then((values) => {
+            values.forEach(element => {
+                if (element.status === 'rejected') {
+                    promisesError.push(element.reason);
+                }
+            });
+            if (promisesError.length > 0) {
+                throw new Error(JSON.stringify(promisesError));
+            }
+        });
     };
 
-    createLogMetricAlarm(event, resource) {
-        const params = JSON.parse(resource["Details"]["Other"]["Params"].replace(/'/g, '"'));
-        params.region = resource["Region"]
-        const self = this;
+    createLogMetricAlarm = async (event, resource) => {
         return new Promise((resolve, reject) => {
             var topicArn = "";
-            this.putMetricFilter(event, params)
-                .then((results) => this.snsCreateTopic(event, params))
+            this.putMetricFilter(event, resource)
+                .then((results) => this.snsCreateTopic(event, resource))
                 .then((results) => new Promise((resolve, reject) => {
                     topicArn = JSON.parse(JSON.stringify(results, null, 2)).TopicArn;
-                    this.snsSubscribe(event, params, topicArn).then(() => resolve(results))
+                    this.snsSubscribe(event, resource, topicArn).then(() => resolve(results))
                  }))
-                .then((results) => this.putMetricAlarm(event, params, topicArn))
+                .then((results) => this.putMetricAlarm(event, resource, topicArn))
                 .then((results) => resolve(results))
             .catch((err) => {
                 reject(err);

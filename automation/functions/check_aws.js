@@ -1,7 +1,3 @@
-// In case of local tests uncomment the lines below
-// const AWS = require("aws-sdk");
-// AWS.config.update({region:'us-east-1'});
-
 class CheckAws {
 
     invokeRemediation = async (event, resource) => {
@@ -15,6 +11,10 @@ class CheckAws {
     logMessage (results, msg) {
         results.push(msg);
         console.info(msg);
+    }
+
+    getResourceRegion (event, resource) {
+        return resource["Region"] && resource["Region"].toUpperCase() !== "N/A" ? resource["Region"] : event.region;
     }
 
     validateResults = (event) => {

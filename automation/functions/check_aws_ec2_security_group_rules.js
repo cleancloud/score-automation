@@ -1,8 +1,16 @@
 const CheckAws = require("./check_aws");
 const AWS = require("aws-sdk");
-const ec2 = new AWS.EC2();
 
 class Ec2SecurityGroupRules extends CheckAws {
+
+    constructor() {
+        super();
+        this.ec2 = undefined;
+    }
+
+    set region(region) {
+        this.ec2 = new AWS.EC2({region});
+    }
 
     getDescribeParams(resourceId) {
         return ({
@@ -22,7 +30,7 @@ class Ec2SecurityGroupRules extends CheckAws {
         };
 
         return new Promise((resolve, reject) => {
-            ec2.revokeSecurityGroupIngress(delete_params, (err, results) => {
+            this.ec2.revokeSecurityGroupIngress(delete_params, (err, results) => {
                 if (err) reject(err);
                 else resolve(results);
             });
@@ -31,7 +39,7 @@ class Ec2SecurityGroupRules extends CheckAws {
 
     createRule(create_params) {
         return new Promise((resolve, reject) => {
-            ec2.authorizeSecurityGroupIngress(create_params, (err, results) => {
+            this.ec2.authorizeSecurityGroupIngress(create_params, (err, results) => {
                 if (err) reject(err);
                 else resolve(results);
             });
@@ -102,22 +110,22 @@ class Ec2SecurityGroupRules extends CheckAws {
         var results = [];
         if (param["To"]){
              if (param["To"]["securityGroup"]) {
-                 results = results.concat(param["To"]["securityGroup"].map(securityGroup =>
+                 results = results.concat(param["To"]["securityGroup"].filter(securityGroup => securityGroup.length !== 0).map(securityGroup =>
                      this.createRule(this.getParamsBySourceType(resourceId, rule, securityGroup, "securityGroup"))
                 ));
              }
              if (param["To"]["prefixList"]) {
-                results = results.concat(param["To"]["prefixList"].map(prefixList =>
+                results = results.concat(param["To"]["prefixList"].filter(prefixList => prefixList.length !== 0).map(prefixList =>
                     this.createRule(this.getParamsBySourceType(resourceId, rule, prefixList, "prefixList"))
                 ));
              }
              if (param["To"]["ipv4"]) {
-                 results = results.concat(param["To"]["ipv4"].map(ipv4 =>
+                 results = results.concat(param["To"]["ipv4"].filter(ipv4 => ipv4.length !== 0).map(ipv4 =>
                      this.createRule(this.getParamsBySourceType(resourceId, rule, ipv4, "ipv4"))
                  ));
              }
              if (param["To"]["ipv6"]) {
-                 results = results.concat(param["To"]["ipv6"].map(ipv6 =>
+                 results = results.concat(param["To"]["ipv6"].filter(ipv6 => ipv6.length !== 0).map(ipv6 =>
                      this.createRule(this.getParamsBySourceType(resourceId, rule, ipv6, "ipv6"))
                  ));
              }
@@ -128,17 +136,17 @@ class Ec2SecurityGroupRules extends CheckAws {
     changeRulesByIpVersion(resource, rule) {
         var results = [];
         if (rule["CidrIpv4"] ? rule["CidrIpv4"] == "0.0.0.0/0" : false) {
-            results = results.concat(this.deleteRule(resource.Id, rule["SecurityGroupRuleId"]));
             JSON.parse(resource["Details"]["Other"]["Params"].replace(/'/g, '"')).forEach(param => {
                 if (param["From"] == "0.0.0.0/0") {
+                    results = results.concat(this.deleteRule(resource.Id, rule["SecurityGroupRuleId"]));
                     results = results.concat(this.createRulePerSourceType(param, resource.Id, rule)).flat();
                 };
             });
         };
         if (rule["CidrIpv6"] ? (rule["CidrIpv6"] == "::/0" || rule["CidrIpv6"] == ":0:0:0:0:0:0:0/0") : false) {
-            results = results.concat(this.deleteRule(resource.Id, rule["SecurityGroupRuleId"]));
             JSON.parse(resource["Details"]["Other"]["Params"].replace(/'/g, '"')).forEach(param => {
                 if (param["From"] == "::/0" || param["From"] == ":0:0:0:0:0:0:0/0") {
+                    results = results.concat(this.deleteRule(resource.Id, rule["SecurityGroupRuleId"]));
                     results = results.concat(this.createRulePerSourceType(param, resource.Id, rule)).flat();
                 };
             });
@@ -150,7 +158,7 @@ class Ec2SecurityGroupRules extends CheckAws {
         const self = this;
         const sgRestrictions = self.getSgRestrictions()
         return new Promise((resolve, reject) => {
-            ec2.describeSecurityGroupRules(self.getDescribeParams(resource.Id), (err, results) => {
+            this.ec2.describeSecurityGroupRules(self.getDescribeParams(resource.Id), (err, results) => {
                 if (err) reject(err);
                 else {
                     resolve(
@@ -169,6 +177,7 @@ class Ec2SecurityGroupRules extends CheckAws {
     };
 
     invokeRemediation = async (event, resource) => {
+        this.region = this.getResourceRegion(event, resource);
         return await Promise.all(await this.changeRules(resource));
     };
 }

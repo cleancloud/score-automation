@@ -1,6 +1,5 @@
 const Ec2SecurityGroupRules = require("./check_aws_ec2_security_group_rules");
 const AWS = require("aws-sdk");
-const ec2 = new AWS.EC2();
 
 class CheckAwsEC224 extends Ec2SecurityGroupRules {
 

@@ -4,7 +4,6 @@ const s3 = new AWS.S3();
 
 class CheckAwsS3TODO extends CheckAws {
 
-
     getDescription () {
         return "Remediate function for S3 buckets with public access"
     }

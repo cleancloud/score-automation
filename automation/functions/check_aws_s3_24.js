@@ -1,6 +1,5 @@
 const CheckAws = require('./check_aws');
 const AWS = require("aws-sdk");
-const s3 = new AWS.S3();
 
 class CheckAwsS324 extends CheckAws {
 
@@ -8,7 +7,17 @@ class CheckAwsS324 extends CheckAws {
         return "Remediate function for S3 buckets with unrestricted DELETE action"
     }
 
+    constructor() {
+        super();
+        this.s3 = undefined;
+    }
+
+    set region(region) {
+        this.s3 = new AWS.S3({region});
+    }
+
     invokeRemediation = async (event, resource) => {
+        this.region = this.getResourceRegion(event, resource);
         const self = this;
         return await new Promise((resolve, reject) => {
 
@@ -16,7 +25,7 @@ class CheckAwsS324 extends CheckAws {
                 Bucket: resource.Id,
             };
 
-            s3.getBucketPolicy(params, (err, results) => {
+            this.s3.getBucketPolicy(params, (err, results) => {
                 if (err) {
                     if (err["code"] === 'NoSuchBucketPolicy') {
                         const msg = `Policy from bucket [${params.Bucket}] already cleaned.`;
@@ -55,11 +64,11 @@ class CheckAwsS324 extends CheckAws {
                         const params = {
                             Bucket: resource.Id
                         };
-                        s3.deleteBucketPolicy(params, function(err, results) {
+                        this.s3.deleteBucketPolicy(params, function(err, results) {
                             if (err) {
                                 return reject(err);
                             } else {
-                                const msg = `Policy from bucket [${params.Bucket}] deleted successfully: ${results}`;
+                                const msg = `Policy from bucket [${params.Bucket}] deleted successfully`;
                                 self.logMessage(event.results, msg);
                                 return resolve(msg);
                             }
@@ -69,11 +78,11 @@ class CheckAwsS324 extends CheckAws {
                             Bucket: resource.Id,
                             Policy: JSON.stringify(policies, null, 2)
                         };
-                        s3.putBucketPolicy(params, function(err, results) {
+                        this.s3.putBucketPolicy(params, function(err, results) {
                             if (err) {
                                 return reject(err);
                             } else {
-                                const msg = `Policy from bucket [${params.Bucket}] changed successfully: ${results}`;
+                                const msg = `Policy from bucket [${params.Bucket}] changed successfully`;
                                 self.logMessage(event.results, msg);
                                 return resolve(msg);
                             }
